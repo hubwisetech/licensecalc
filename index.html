@@ -428,6 +428,82 @@
   .btn-export svg { width: 15px; height: 15px; }
   .btn-export:disabled { opacity: 0.5; cursor: not-allowed; filter: none; transform: none; }
 
+  /* ─── Image Preview Modal ─── */
+  .img-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+  }
+  .img-modal-overlay.active { display: flex; }
+  .img-modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+    padding: 20px;
+    position: relative;
+  }
+  .img-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    width: 32px; height: 32px;
+    border: none;
+    background: var(--surface-alt);
+    border-radius: 50%;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    z-index: 1;
+  }
+  .img-modal-close:hover { background: var(--red-bg); color: var(--red); }
+  .img-modal img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .img-modal-hint {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 12px;
+  }
+  .img-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .img-modal-actions button {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .img-modal-actions button:hover { background: var(--surface-alt); }
+  .img-modal-actions button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .img-modal-actions button.primary:hover { filter: brightness(1.1); }
+
   /* ─── Responsive ─── */
   @media (max-width: 768px) {
     .calculator-wrapper { padding: 20px 12px 60px; }
@@ -514,6 +590,22 @@
 
   <!-- Footer -->
   <div class="calc-footer">
+
+  <!-- Image Preview Modal -->
+  <div class="img-modal-overlay" id="imgModal" onclick="if(event.target===this)closeImgModal()">
+    <div class="img-modal">
+      <button class="img-modal-close" onclick="closeImgModal()">&times;</button>
+      <img id="imgModalPreview" src="" alt="Pricing Comparison">
+
+      <div class="img-modal-actions">
+        <button onclick="closeImgModal()">Close</button>
+        <button class="primary" onclick="downloadModalImage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>
+      </div>
+    </div>
+  </div>
     Pricing based on Microsoft published list prices as of March 2026.<br>
     Month-to-month carries a 20% premium over annual. Annual paid monthly carries a 5% premium (effective April 1, 2025).<br>
     July 2026 increases announced Dec 4, 2025 &mdash; Business Basic to $7, Business Standard to $14, O365 E3 to $26, M365 E3 to $42, M365 E5 to $65.
@@ -614,7 +706,7 @@ function addLicenseRow(preselect, precount) {
 }
 
 function fmt(n) {
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtDec(n) {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -659,17 +751,20 @@ function recalculate() {
     </tr></thead><tbody>`;
 
   for (const e of entries) {
-    const annualTotal = e.base * 12 * e.users;
-    const monthlyTotal = e.base * MULTIPLIER_MONTHLY * 12 * e.users;
-    const m2mTotal = e.base * MULTIPLIER_M2M * 12 * e.users;
+    // Round per-user monthly prices to the penny first (how Microsoft bills)
+    const puAnnual = Math.round(e.base * 100) / 100;
+    const puMonthly = Math.round(e.base * MULTIPLIER_MONTHLY * 100) / 100;
+    const puM2M = Math.round(e.base * MULTIPLIER_M2M * 100) / 100;
+
+    // Annual totals derived from rounded per-user prices
+    const annualTotal = puAnnual * 12 * e.users;
+    const monthlyTotal = puMonthly * 12 * e.users;
+    const m2mTotal = puM2M * 12 * e.users;
     const savings = m2mTotal - annualTotal;
     const extraMo = monthlyTotal - annualTotal;
     const extraM2M = m2mTotal - annualTotal;
 
-    // Per-user monthly prices
-    const puAnnual = e.base;
-    const puMonthly = e.base * MULTIPLIER_MONTHLY;
-    const puM2M = e.base * MULTIPLIER_M2M;
+    // Per-user deltas
     const puSavings = puM2M - puAnnual;
     const puExtraMo = puMonthly - puAnnual;
     const puExtraM2M = puM2M - puAnnual;
@@ -786,9 +881,13 @@ function buildExportRows(entries) {
   const totals = { users: 0, annual: 0, monthly: 0, m2m: 0, savings: 0, extraMo: 0, extraM2M: 0 };
 
   for (const e of entries) {
-    const ann = e.base * 12 * e.users;
-    const mo  = e.base * MULTIPLIER_MONTHLY * 12 * e.users;
-    const m2m = e.base * MULTIPLIER_M2M * 12 * e.users;
+    const puBase = Math.round(e.base * 100) / 100;
+    const puMo = Math.round(e.base * MULTIPLIER_MONTHLY * 100) / 100;
+    const puM2M = Math.round(e.base * MULTIPLIER_M2M * 100) / 100;
+
+    const ann = puBase * 12 * e.users;
+    const mo  = puMo * 12 * e.users;
+    const m2m = puM2M * 12 * e.users;
     const sav = m2m - ann;
     const exMo = mo - ann;
     const exM2M = m2m - ann;
@@ -799,8 +898,8 @@ function buildExportRows(entries) {
     // Main row
     allRows.push([e.name, e.users, ann, mo, m2m, sav, exMo, exM2M]);
     // Per user/mo
-    allRows.push(["  Per User / Month", "", e.base, e.base * MULTIPLIER_MONTHLY, e.base * MULTIPLIER_M2M,
-      e.base * MULTIPLIER_M2M - e.base, e.base * MULTIPLIER_MONTHLY - e.base, e.base * MULTIPLIER_M2M - e.base]);
+    allRows.push(["  Per User / Month", "", puBase, puMo, puM2M,
+      puM2M - puBase, puMo - puBase, puM2M - puBase]);
     // Monthly amortized
     allRows.push(["  Monthly Amortized", "", ann/12, mo/12, m2m/12, sav/12, exMo/12, exM2M/12]);
   }
@@ -911,6 +1010,20 @@ function exportXLSX() {
   XLSX.writeFile(wb, "M365_License_Pricing.xlsx");
 }
 
+// ─── Image Modal helpers ───
+let currentImageData = null;
+
+function closeImgModal() {
+  document.getElementById('imgModal').classList.remove('active');
+}
+function downloadModalImage() {
+  if (!currentImageData) return;
+  const link = document.createElement('a');
+  link.download = 'M365_License_Pricing.png';
+  link.href = currentImageData;
+  link.click();
+}
+
 // ─── Image Export ───
 async function exportImage() {
   const btn = event.currentTarget;
@@ -918,15 +1031,15 @@ async function exportImage() {
 
   try {
     const el = document.getElementById('comparisonBody');
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
 
     // Create a wrapper canvas with logo, title and padding
     const logoEl = document.getElementById('hubwiseLogo');
-    const logoCanvas = await html2canvas(logoEl, { scale: 2, backgroundColor: null, useCORS: true });
+    const logoCanvas = await html2canvas(logoEl, { scale: 1.5, backgroundColor: null, useCORS: true });
 
-    const pad = 40;
-    const titleH = 90;
-    const footerH = 36;
+    const pad = 28;
+    const titleH = 62;
+    const footerH = 28;
     const wrapper = document.createElement('canvas');
     wrapper.width = canvas.width + pad * 2;
     wrapper.height = canvas.height + titleH + footerH + pad;
@@ -937,32 +1050,31 @@ async function exportImage() {
     ctx.fillRect(0, 0, wrapper.width, wrapper.height);
 
     // Logo
-    const logoDrawH = 50;
+    const logoDrawH = 36;
     const logoAspect = logoCanvas.width / logoCanvas.height;
     const logoDrawW = logoDrawH * logoAspect;
-    ctx.drawImage(logoCanvas, pad, pad - 6, logoDrawW, logoDrawH);
+    ctx.drawImage(logoCanvas, pad, pad - 4, logoDrawW, logoDrawH);
 
     // Title next to logo
-    const textX = pad + logoDrawW + 16;
+    const textX = pad + logoDrawW + 12;
     ctx.fillStyle = '#1b3a5c';
-    ctx.font = 'bold 32px DM Sans, Arial, sans-serif';
-    ctx.fillText('Microsoft 365 License Pricing Comparison', textX, pad + 20);
+    ctx.font = 'bold 22px DM Sans, Arial, sans-serif';
+    ctx.fillText('Microsoft 365 License Pricing Comparison', textX, pad + 12);
     ctx.fillStyle = '#9ca3af';
-    ctx.font = '16px DM Sans, Arial, sans-serif';
-    ctx.fillText('Generated ' + new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }), textX, pad + 42);
+    ctx.font = '11px DM Sans, Arial, sans-serif';
+    ctx.fillText('Generated ' + new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }), textX, pad + 28);
 
     // Table
-    ctx.drawImage(canvas, pad, titleH + 10);
+    ctx.drawImage(canvas, pad, titleH + 6);
 
     // Footer
     ctx.fillStyle = '#c0c0c0';
-    ctx.font = '13px DM Sans, Arial, sans-serif';
-    ctx.fillText('Pricing based on Microsoft published list prices as of March 2026. M2M +20%, Annual paid monthly +5%.', pad, titleH + 10 + canvas.height + 24);
+    ctx.font = '9px DM Sans, Arial, sans-serif';
+    ctx.fillText('Pricing based on Microsoft published list prices as of March 2026. M2M +20%, Annual paid monthly +5%.', pad, titleH + 6 + canvas.height + 16);
 
-    const link = document.createElement('a');
-    link.download = 'M365_License_Pricing.png';
-    link.href = wrapper.toDataURL('image/png');
-    link.click();
+    currentImageData = wrapper.toDataURL('image/png');
+    document.getElementById('imgModalPreview').src = currentImageData;
+    document.getElementById('imgModal').classList.add('active');
   } catch (err) {
     console.error('Image export failed:', err);
     alert('Image export failed. Please try again.');
