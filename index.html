@@ -153,7 +153,7 @@
     box-shadow: 0 0 0 3px var(--accent-glow);
   }
 
-  .license-row input[type="number"] {
+  .license-row input[type="text"] {
     font-family: 'Space Mono', monospace;
     font-size: 0.875rem;
     font-weight: 700;
@@ -166,13 +166,52 @@
     width: 100%;
     transition: border-color var(--transition), box-shadow var(--transition);
   }
-  .license-row input[type="number"]:focus {
+  .license-row input[type="text"]:focus {
     outline: none;
     border-color: var(--border-focus);
     box-shadow: 0 0 0 3px var(--accent-glow);
     background: #fff;
   }
-  .license-row input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+
+  /* Custom spinner wrapper */
+  .qty-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 120px;
+  }
+  .qty-wrapper input {
+    padding-right: 28px !important;
+  }
+  .qty-spinners {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    bottom: 2px;
+    width: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .qty-spin {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-alt);
+    border: none;
+    border-left: 1px solid var(--input-border);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.6rem;
+    padding: 0;
+    transition: all var(--transition);
+    border-radius: 0;
+  }
+  .qty-spin:first-child { border-radius: 0 4px 0 0; }
+  .qty-spin:last-child { border-radius: 0 0 4px 0; }
+  .qty-spin:hover { background: var(--primary-lighter); color: var(--primary); }
+  .qty-spin:active { background: var(--accent-glow); }
 
   .btn-remove {
     width: 36px; height: 36px;
@@ -674,19 +713,58 @@ function addLicenseRow(preselect, precount) {
   }
   select.addEventListener('change', recalculate);
 
+  const qtyWrapper = document.createElement('div');
+  qtyWrapper.className = 'qty-wrapper';
+
   const input = document.createElement('input');
-  input.type = 'number';
+  input.type = 'text';
+  input.inputMode = 'numeric';
+  input.pattern = '[0-9]*';
   input.id = `count-${id}`;
-  input.min = 0;
-  input.max = 9999;
   input.value = precount || 0;
   input.placeholder = '# Users';
   input.autocomplete = 'off';
+  input.setAttribute('autocomplete', 'off');
   input.setAttribute('data-lpignore', 'true');
   input.setAttribute('data-1p-ignore', 'true');
+  input.setAttribute('data-keeper-ignore', 'true');
   input.setAttribute('data-form-type', 'other');
-  input.name = `usercount-${id}`;
-  input.addEventListener('input', recalculate);
+  input.setAttribute('role', 'spinbutton');
+  input.setAttribute('aria-label', 'Number of users');
+  input.name = `qty_users_${id}`;
+  input.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '');
+    recalculate();
+  });
+
+  const spinners = document.createElement('div');
+  spinners.className = 'qty-spinners';
+
+  const btnUp = document.createElement('button');
+  btnUp.className = 'qty-spin';
+  btnUp.type = 'button';
+  btnUp.tabIndex = -1;
+  btnUp.innerHTML = '&#9650;';
+  btnUp.addEventListener('click', () => {
+    input.value = (parseInt(input.value) || 0) + 1;
+    recalculate();
+  });
+
+  const btnDown = document.createElement('button');
+  btnDown.className = 'qty-spin';
+  btnDown.type = 'button';
+  btnDown.tabIndex = -1;
+  btnDown.innerHTML = '&#9660;';
+  btnDown.addEventListener('click', () => {
+    const val = (parseInt(input.value) || 0) - 1;
+    input.value = val < 0 ? 0 : val;
+    recalculate();
+  });
+
+  spinners.appendChild(btnUp);
+  spinners.appendChild(btnDown);
+  qtyWrapper.appendChild(input);
+  qtyWrapper.appendChild(spinners);
 
   const removeBtn = document.createElement('button');
   removeBtn.className = 'btn-remove';
@@ -699,7 +777,7 @@ function addLicenseRow(preselect, precount) {
   });
 
   row.appendChild(select);
-  row.appendChild(input);
+  row.appendChild(qtyWrapper);
   row.appendChild(removeBtn);
   container.appendChild(row);
   rows.push(id);
