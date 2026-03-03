@@ -1109,11 +1109,11 @@ async function exportImage() {
 
   try {
     const el = document.getElementById('comparisonBody');
-    const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
+    const canvas = await html2canvas(el, { scale: 1.2, backgroundColor: '#ffffff', useCORS: true });
 
     // Create a wrapper canvas with logo, title and padding
     const logoEl = document.getElementById('hubwiseLogo');
-    const logoCanvas = await html2canvas(logoEl, { scale: 1.5, backgroundColor: null, useCORS: true });
+    const logoCanvas = await html2canvas(logoEl, { scale: 1.2, backgroundColor: null, useCORS: true });
 
     const pad = 28;
     const titleH = 62;
